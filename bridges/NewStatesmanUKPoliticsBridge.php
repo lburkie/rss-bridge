@@ -6,6 +6,14 @@ class NewStatesmanUKPoliticsBridge extends BridgeAbstract {
     const DESCRIPTION = 'Latest articles from the UK Politics section of New Statesman';
     const MAINTAINER = 'lburkie';
 
+    private function findClosestArticle($element) {
+    while ($element !== null && $element->tag !== 'article') {
+        $element = $element->parent();
+    }
+    return $element;
+}
+
+
  public function collectData()
 {
     $html = getSimpleHTMLDOM(self::URI) or returnServerError('Could not load New Statesman UK Politics page');
@@ -24,7 +32,7 @@ class NewStatesmanUKPoliticsBridge extends BridgeAbstract {
         $item['uri'] = urljoin(self::URI, $link->href);
 
         // Move up to the parent article element to search for other data (like summary, date, image)
-        $article = $headlineBlock->closest('article'); // closest <article> ancestor
+        $article = $this->findClosestArticle($headline);
 
         if (!$article) {
             $item['content'] = ''; // fallback

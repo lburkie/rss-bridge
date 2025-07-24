@@ -1,51 +1,44 @@
 <?php
 
-class NewStatesmanUKPoliticsBridge extends BridgeAbstract
-{
-    const NAME = 'New Statesman UK Politics bridge';
+class NewStatesmanBridge extends BridgeAbstract {
+    const NAME = 'New Statesman UK Politics';
     const URI = 'https://www.newstatesman.com/politics/uk-politics';
-    const DESCRIPTION = 'Bridge to news outlet New Statesman. Specifically the UK Politics section';
+    const DESCRIPTION = 'Latest articles from the UK Politics section of New Statesman';
     const MAINTAINER = 'lburkie';
-    const PARAMETERS = []; // Can be omitted!
-    const CACHE_TIMEOUT = 3600; // Can be omitted!
-    
-    public function collectData()
-{
-    $html = getSimpleHTMLDOM(self::URI) or returnServerError('Could not load New Statesman UK Politics page');
 
-    foreach ($html->find('article') as $article) {
-        $item = [];
-
-        // Link + Title
-        $linkElement = $article->find('a', 0);
-        if (!$linkElement) {
-            continue; // skip malformed articles
-        }
-        $item['uri'] = urljoin(self::URI, $linkElement->href);
-        $item['title'] = trim($linkElement->plaintext);
-
-        // Summary (optional)
-        $summary = $article->find('p', 0);
-        if ($summary) {
-            $item['content'] = trim($summary->plaintext);
+    public function collectData() {
+        $html = getSimpleHTMLDOM(self::URI);
+        if (!$html) {
+            returnServerError('Failed to retrieve HTML from source');
         }
 
-        // Date (optional)
-        $time = $article->find('time', 0);
-        if ($time && isset($time->datetime)) {
-            $item['timestamp'] = strtotime($time->datetime);
-        }
+        foreach ($html->find('.c-story__header__headline--catalogue') as $element) {
+            $link = $element->find('a', 0);
+            if (!$link) {
+                continue;
+            }
 
-        // Image (optional)
-        $img = $article->find('img', 0);
-        if ($img && isset($img->src)) {
-            $imgSrc = urljoin(self::URI, $img->src);
-            $item['enclosures'] = [$imgSrc]; // adds as media enclosure
-            $item['content'] .= '<br><img src="' . $imgSrc . '" />';
-        }
+            $item = [];
 
-        $this->items[] = $item;
+            // Get title and URI
+            $item['title'] = trim($link->plaintext);
+            $item['uri'] = $link->href;
+
+            // Make URI absolute if needed
+            if (strpos($item['uri'], 'http') !== 0) {
+                $item['uri'] = 'https://www.newstatesman.com' . $item['uri'];
+            }
+
+            // Try to get article summary text (optional — depends on site structure)
+            $storyContainer = $element->parent(); // move up one level to find siblings
+            $summary = $storyContainer->find('.c-story__standfirst', 0);
+            if ($summary) {
+                $item['content'] = trim($summary->plaintext);
+            } else {
+                $item['content'] = ''; // fallback empty content
+            }
+
+            $this->items[] = $item;
+        }
     }
-}
-
 }

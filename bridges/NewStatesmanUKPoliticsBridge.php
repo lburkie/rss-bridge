@@ -1,7 +1,7 @@
 <?php
 
 class NewStatesmanBridge extends BridgeAbstract {
-    const NAME = 'New Statesman UK Politics';
+    const NAME = 'NewStatesmanUKPoliticsBridge';
     const URI = 'https://www.newstatesman.com/politics/uk-politics';
     const DESCRIPTION = 'Latest articles from the UK Politics section of New Statesman';
     const MAINTAINER = 'lburkie';

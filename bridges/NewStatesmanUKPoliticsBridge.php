@@ -6,39 +6,56 @@ class NewStatesmanUKPoliticsBridge extends BridgeAbstract {
     const DESCRIPTION = 'Latest articles from the UK Politics section of New Statesman';
     const MAINTAINER = 'lburkie';
 
-    public function collectData() {
-        $html = getSimpleHTMLDOM(self::URI);
-        if (!$html) {
-            returnServerError('Failed to retrieve HTML from source');
+ public function collectData()
+{
+    $html = getSimpleHTMLDOM(self::URI) or returnServerError('Could not load New Statesman UK Politics page');
+
+    // Iterate through headline blocks (they contain the correct article links and titles)
+    foreach ($html->find('.c-story__header__headline--catalogue') as $headlineBlock) {
+        $link = $headlineBlock->find('a', 0);
+        if (!$link) {
+            continue; // skip if link is missing
         }
 
-        foreach ($html->find('.c-story__header__headline--catalogue') as $element) {
-            $link = $element->find('a', 0);
-            if (!$link) {
-                continue;
-            }
+        $item = [];
 
-            $item = [];
+        // Title and link
+        $item['title'] = trim($link->plaintext);
+        $item['uri'] = urljoin(self::URI, $link->href);
 
-            // Get title and URI
-            $item['title'] = trim($link->plaintext);
-            $item['uri'] = $link->href;
+        // Move up to the parent article element to search for other data (like summary, date, image)
+        $article = $headlineBlock->closest('article'); // closest <article> ancestor
 
-            // Make URI absolute if needed
-            if (strpos($item['uri'], 'http') !== 0) {
-                $item['uri'] = 'https://www.newstatesman.com' . $item['uri'];
-            }
-
-            // Try to get article summary text (optional — depends on site structure)
-            $storyContainer = $element->parent(); // move up one level to find siblings
-            $summary = $storyContainer->find('.c-story__standfirst', 0);
-            if ($summary) {
-                $item['content'] = trim($summary->plaintext);
-            } else {
-                $item['content'] = ''; // fallback empty content
-            }
-
+        if (!$article) {
+            $item['content'] = ''; // fallback
             $this->items[] = $item;
+            continue;
         }
+
+        // Summary
+        $summary = $article->find('p.card__standfirst, .c-story__standfirst', 0); // try multiple possible classes
+        if ($summary) {
+            $item['content'] = trim($summary->plaintext);
+        } else {
+            $item['content'] = '';
+        }
+
+        // Timestamp
+        $time = $article->find('time', 0);
+        if ($time && isset($time->datetime)) {
+            $item['timestamp'] = strtotime($time->datetime);
+        }
+
+        // Image
+        $img = $article->find('img', 0);
+        if ($img && isset($img->src)) {
+            $imgSrc = urljoin(self::URI, $img->src);
+            $item['enclosures'] = [$imgSrc];
+            $item['content'] .= '<br><img src="' . $imgSrc . '" />';
+        }
+
+        $this->items[] = $item;
     }
+}
+
 }

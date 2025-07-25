@@ -1,64 +1,46 @@
 <?php
 
-class NewStatesmanUKPoliticsBridge extends BridgeAbstract {
+class NewStatesmanUKPoliticsBridge extends BridgeAbstract
+{
     const NAME = 'New Statesman UK Politics Bridge';
     const URI = 'https://www.newstatesman.com/politics/uk-politics';
-    const DESCRIPTION = 'Latest articles from the UK Politics section of New Statesman';
+    const DESCRIPTION = 'Bridge to news outlet New Statesman. Specifically the UK Politics section';
     const MAINTAINER = 'lburkie';
-
-    private function findClosestArticle($element) {
-    while ($element !== null && $element->tag !== 'article') {
-        $element = $element->parent();
-    }
-    return $element;
-}
-
-
- public function collectData()
+    const PARAMETERS = []; // Can be omitted!
+    const CACHE_TIMEOUT = 3600; // Can be omitted!
+    
+    public function collectData()
 {
     $html = getSimpleHTMLDOM(self::URI) or returnServerError('Could not load New Statesman UK Politics page');
 
-    // Iterate through headline blocks (they contain the correct article links and titles)
-    foreach ($html->find('.c-story__header__headline--catalogue') as $headlineBlock) {
-        $link = $headlineBlock->find('a', 0);
-        if (!$link) {
-            continue; // skip if link is missing
-        }
-
+    foreach ($html->find('article') as $article) {
         $item = [];
 
-        // Title and link
-        $item['title'] = trim($link->plaintext);
-        $item['uri'] = urljoin(self::URI, $link->href);
-
-        // Move up to the parent article element to search for other data (like summary, date, image)
-        $article = $this->findClosestArticle($headline);
-
-        if (!$article) {
-            $item['content'] = ''; // fallback
-            $this->items[] = $item;
-            continue;
+        // Link + Title
+        $linkElement = $article->find('a', 0);
+        if (!$linkElement) {
+            continue; // skip malformed articles
         }
+        $item['uri'] = urljoin(self::URI, $linkElement->href);
+        $item['title'] = trim($linkElement->plaintext);
 
-        // Summary
-        $summary = $article->find('p.card__standfirst, .c-story__standfirst', 0); // try multiple possible classes
+        // Summary (optional)
+        $summary = $article->find('p', 0);
         if ($summary) {
             $item['content'] = trim($summary->plaintext);
-        } else {
-            $item['content'] = '';
         }
 
-        // Timestamp
+        // Date (optional)
         $time = $article->find('time', 0);
         if ($time && isset($time->datetime)) {
             $item['timestamp'] = strtotime($time->datetime);
         }
 
-        // Image
+        // Image (optional)
         $img = $article->find('img', 0);
         if ($img && isset($img->src)) {
             $imgSrc = urljoin(self::URI, $img->src);
-            $item['enclosures'] = [$imgSrc];
+            $item['enclosures'] = [$imgSrc]; // adds as media enclosure
             $item['content'] .= '<br><img src="' . $imgSrc . '" />';
         }
 
